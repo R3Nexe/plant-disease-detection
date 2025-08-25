@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+
+# Virtual env
+.venv/
+env/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Pyenv
+.python-version
+
+# Data
+data/raw/
+data/interim/
+data/processed/
+
+# Models & results
+models/checkpoints/
+models/artifacts/
+reports/figures/
+
+# OS / IDE
+.DS_Store
+.vscode/
