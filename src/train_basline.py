@@ -1,96 +1,86 @@
+# app.py
+import streamlit as st
 import tensorflow as tf
-from tensorflow.keras import layers, models
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
-import matplotlib.pyplot as plt
+import numpy as np
+from PIL import Image
+from tensorflow.keras import layers
+import plotly.express as px
 
-BATCH_SIZE=32
-EPOCHS=10
+# -----------------------------
+# Config
+# -----------------------------
+IMG_SIZE = (224, 224)
+MODEL_PATH = "mobilenetv2_final.keras"
+CLASS_NAMES = [
+    "Tomato___Early_blight",
+    "Tomato___healthy",
+    "Tomato___Late_blight",
+    "Tomato___Target_Spot"
+]
 
+# -----------------------------
+# Load model
+# -----------------------------
+@st.cache_resource
+def load_model():
+    return tf.keras.models.load_model(MODEL_PATH)
 
-train_ds = tf.keras.utils.image_dataset_from_directory(
-    "data/interim/train",
-    image_size=(128, 128),
-    batch_size=BATCH_SIZE,
-)
+model = load_model()
 
-val_ds = tf.keras.utils.image_dataset_from_directory(
-    "data/interim/val",
-    image_size=(128, 128),
-    batch_size=BATCH_SIZE
-)
-test_ds = tf.keras.utils.image_dataset_from_directory(
-    "data/interim/test",
-    image_size=(128, 128),
-    batch_size=BATCH_SIZE
-)
-
-
-
+# -----------------------------
+# Preprocessing
+# -----------------------------
 normalization_layer = layers.Rescaling(1./255)
 
-# Data augmentation
-data_augmentation = tf.keras.Sequential([
-    layers.RandomFlip("horizontal_and_vertical"),
-    layers.RandomRotation(0.5),
-    layers.RandomZoom(0.3),
-])
+def preprocess_image(img: Image.Image):
+    img = img.convert("RGB")
+    img = img.resize(IMG_SIZE)
+    img_array = tf.keras.utils.img_to_array(img)
+    img_array = tf.expand_dims(img_array, 0)  # add batch dim
+    img_array = normalization_layer(img_array)
+    return img_array
 
-num_classes=len(train_ds.class_names)
+def predict(image):
+    img_array = preprocess_image(image)
+    preds = model.predict(img_array)
+    pred_idx = np.argmax(preds, axis=1)[0]
+    confidence = np.max(preds)
+    return preds[0], pred_idx, confidence
 
-AUTOTUNE = tf.data.AUTOTUNE
-train_ds = train_ds.map(lambda x, y: (normalization_layer(x), y)).cache().shuffle(1000).prefetch(buffer_size=AUTOTUNE)
-val_ds   = val_ds.map(lambda x, y: (normalization_layer(x), y)).cache().prefetch(buffer_size=AUTOTUNE)
+# -----------------------------
+# Streamlit UI
+# -----------------------------
+st.title("🍅 Tomato Leaf Disease Classifier")
+st.write("Upload an image or take a photo to classify the tomato leaf condition.")
 
-#Sequential model training
-model = models.Sequential([
-    data_augmentation,
+option = st.radio("Choose input method:", ["Upload from file", "Use camera"])
 
-    layers.Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 3)),
-    layers.MaxPooling2D((2, 2)),
+image = None
+if option == "Upload from file":
+    uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
+    if uploaded_file is not None:
+        image = Image.open(uploaded_file)
 
-    layers.Conv2D(64, (3, 3), activation='relu'),
-    layers.MaxPooling2D((2, 2)),
-layers.Dropout(0.3),
+elif option == "Use camera":
+    camera_image = st.camera_input("Take a picture")
+    if camera_image is not None:
+        image = Image.open(camera_image)
 
-    layers.Conv2D(128, (3, 3), activation='relu'),
-    layers.MaxPooling2D((2, 2)),
-    layers.Dropout(0.3),
+if image:
+    st.image(image, caption="Input Image", use_column_width=True)
 
-    layers.Flatten(),
-    layers.Dense(128, activation='relu'),
-    layers.Dropout(0.5),
-    layers.Dense(num_classes, activation='softmax')
-])
-reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
-    monitor='val_loss', factor=0.5, patience=2, min_lr=1e-6
-)
-early_stop = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
-optimiser=tf.keras.optimizers.Adam(learning_rate=1e-4,clipnorm=1.0)
+    # Prediction
+    probs, pred_idx, confidence = predict(image)
 
-#compiling model
-model.compile(
-    optimizer=optimiser,
-    loss='sparse_categorical_crossentropy',
-    metrics=['accuracy']
-)
+    # Show result
+    st.subheader(f"Prediction: **{CLASS_NAMES[pred_idx]}**")
+    st.write(f"Confidence: {confidence:.2f}")
 
-#Training model
-history = model.fit(
-    train_ds,
-    batch_size=BATCH_SIZE,
-    validation_data=val_ds,
-    epochs=EPOCHS,
-
-)
-plt.plot(history.history['accuracy'], label='accuracy')
-plt.plot(history.history['val_accuracy'], label = 'val_accuracy')
-plt.xlabel('Epoch')
-plt.ylabel('Accuracy')
-plt.ylim([0.5, 1])  
-plt.legend(loc='lower right')
-plt.show()
-
-
-print(model.evaluate(test_ds))
-#Saving model
-model.save("models/cnn_model.keras")
+    # Probability bar chart
+    fig = px.bar(
+        x=CLASS_NAMES,
+        y=probs,
+        labels={'x': "Class", 'y': "Probability"},
+        title="Prediction Probabilities"
+    )
+    st.plotly_chart(fig)

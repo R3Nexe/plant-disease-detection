@@ -126,7 +126,6 @@ Process:
 3. Re-trained end-to-end.
 
 
-
 Result:
 
 - Improved accuracy compared to frozen MobileNet.

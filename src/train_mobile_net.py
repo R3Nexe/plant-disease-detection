@@ -9,7 +9,7 @@ from tensorflow.keras.applications import MobileNetV2
 BATCH_SIZE = 32
 EPOCHS_HEAD = 10        # train classifier head
 EPOCHS_FINE_TUNE = 20   # fine-tune deeper layers
-IMG_SIZE = (244, 244)
+IMG_SIZE = (224, 224)
 
 # -----------------------------
 # Dataset
@@ -38,6 +38,7 @@ data_augmentation = tf.keras.Sequential([
     layers.RandomFlip("horizontal"),
     layers.RandomRotation(0.2),
     layers.RandomZoom(0.1),
+    layers.RandomContrast(factor=[0,1]),
 ])
 
 num_classes = len(train_ds.class_names)
@@ -47,6 +48,7 @@ train_ds = (
     train_ds
     .map(lambda x, y: (normalization_layer(x), y))
     .cache()
+    .shuffle(1000)
     .prefetch(buffer_size=AUTOTUNE)
 )
 val_ds = (
@@ -80,10 +82,15 @@ model = models.Sequential([
 ])
 
 loss_fn = tf.keras.losses.SparseCategoricalCrossentropy()
+lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+    initial_learning_rate=1e-4,
+    decay_steps=10000,
+    decay_rate=0.9
+)
 
 # Compile for head training
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule),
     loss=loss_fn,
     metrics=["accuracy"]
 )
@@ -112,7 +119,7 @@ history_head = model.fit(
 # -----------------------------
 print("\n🔹 Fine-tuning backbone...")
 base_model.trainable = True
-for layer in base_model.layers[:-40]:   # freeze all but last 40 layers
+for layer in base_model.layers[:-50]:   # freeze all but last 40 layers
     layer.trainable = False
 
 model.compile(
