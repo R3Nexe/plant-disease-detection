@@ -13,7 +13,7 @@ except Exception:
 
 @st.cache_resource
 def load_model():
-    return tf.keras.models.load_model("mnv2_pro_best.keras")
+    return tf.keras.models.load_model("app/mnv2_pro_best.keras")
 
 model = load_model()
 
