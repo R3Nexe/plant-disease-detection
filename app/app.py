@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 try:
-    from streamlit_image_select import image_select  # optional, nicer selection
+    from streamlit_image_select import image_select
     HAS_IMAGE_SELECT = True
 except Exception:
     HAS_IMAGE_SELECT = False
@@ -86,18 +86,18 @@ if uploaded_file is not None:
 elif selected_example is not None:
     image = Image.open(selected_example).convert("RGB")
 
-# -----------------------------
+
 # Prediction
-# -----------------------------
+
 if image is not None:
     st.image(image, caption="Selected Leaf Image", use_container_width=True)
 
-    # Preprocess
+    # Preprocessing
     img_array = np.array(image)
     img_array = tf.image.resize(img_array, (224, 224))
     img_array = np.expand_dims(img_array, axis=0) / 255.0
 
-    # Predict
+    # Predicting
     predictions = model.predict(img_array)
     predicted_class = np.argmax(predictions, axis=1)[0]
     confidence = np.max(predictions)

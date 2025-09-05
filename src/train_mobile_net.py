@@ -3,17 +3,17 @@ from tensorflow.keras import layers, models, regularizers
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.keras.applications import MobileNetV2
 
-# -----------------------------
+
 # Config
-# -----------------------------
+
 BATCH_SIZE = 32
-EPOCHS_HEAD = 10        # train classifier head
-EPOCHS_FINE_TUNE = 20   # fine-tune deeper layers
+EPOCHS_HEAD = 10
+EPOCHS_FINE_TUNE = 20
 IMG_SIZE = (224, 224)
 
-# -----------------------------
+
 # Dataset
-# -----------------------------
+
 train_ds = tf.keras.utils.image_dataset_from_directory(
     "data/interim/train",
     image_size=IMG_SIZE,
@@ -59,19 +59,18 @@ val_ds = (
 )
 test_ds = test_ds.map(lambda x, y: (normalization_layer(x), y)).prefetch(buffer_size=AUTOTUNE)
 
-# -----------------------------
-# Base Model (MobileNetV2)
-# -----------------------------
+
+# Base Model (MobileNetv2)
+
 base_model = MobileNetV2(
     input_shape=(IMG_SIZE[0], IMG_SIZE[1], 3),
     include_top=False,
     weights="imagenet"
 )
-base_model.trainable = False   # freeze backbone
+base_model.trainable = False
 
-# -----------------------------
+
 # Build Model
-# -----------------------------
 model = models.Sequential([
     data_augmentation,
     base_model,
@@ -95,17 +94,13 @@ model.compile(
     metrics=["accuracy"]
 )
 
-# -----------------------------
 # Callbacks
-# -----------------------------
 early_stop = EarlyStopping(monitor="val_loss", patience=5, restore_best_weights=True)
 checkpoint = ModelCheckpoint("models/mobilenetv2_best.keras", monitor="val_accuracy",
                              save_best_only=True, verbose=1)
 reduce_lr = ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=2, min_lr=1e-6)
 
-# -----------------------------
 # Phase 1: Train Head
-# -----------------------------
 print("\n🔹 Training classifier head...")
 history_head = model.fit(
     train_ds,
@@ -114,16 +109,16 @@ history_head = model.fit(
     callbacks=[early_stop, checkpoint, reduce_lr]
 )
 
-# -----------------------------
-# Phase 2: Fine-tune deeper layers
-# -----------------------------
+
+#Fine-tune deeper layers
+
 print("\n🔹 Fine-tuning backbone...")
 base_model.trainable = True
-for layer in base_model.layers[:-50]:   # freeze all but last 40 layers
+for layer in base_model.layers[:-50]:
     layer.trainable = False
 
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),  # smaller LR for fine-tune
+    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
     loss=loss_fn,
     metrics=["accuracy"]
 )
@@ -135,9 +130,8 @@ history_ft = model.fit(
     callbacks=[early_stop, checkpoint, reduce_lr]
 )
 
-# -----------------------------
+
 # Final Evaluation
-# -----------------------------
 print("\n🔹 Evaluating on test set...")
 test_loss, test_acc = model.evaluate(test_ds)
 print(f"✅ Test Accuracy: {test_acc:.4f}, Test Loss: {test_loss:.4f}")
