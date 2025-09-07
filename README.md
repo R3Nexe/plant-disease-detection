@@ -1,5 +1,5 @@
 # 🌿 Plant Disease Detection
-
+## [Live Demo](https://plantdisease-classifier.streamlit.app/)
 ## Dataset
 
 [Plant Village Dataset from kaggle](https://www.kaggle.com/datasets/abdallahalidev/plantvillage-dataset)
